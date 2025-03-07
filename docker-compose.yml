@@ -1,0 +1,46 @@
+
+version: '3'
+
+
+services:
+
+ 
+  scrum-postgres:
+    image: "postgres:9.6-alpine"
+    container_name: scrum-postgres
+    
+    volumes:
+      - scrum-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432 
+    environment:
+      - POSTGRES_DB=caisse
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=MoHaMed2003-+*
+
+  scrum-app:
+    build: ./scrum-app
+    container_name: scrum-app
+
+    environment:
+      - DB_SERVER=scrum-postgres
+      - POSTGRES_DB=caisse
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=MoHaMed2003-+*
+    ports:
+      - 8080:8080 
+    links:
+      - scrum-postgres
+
+ 
+  scrum-ui:
+    build: ./scrum-ui
+    container_name: scrum-ui
+    ports:
+      - 4200:80
+    links:
+      - scrum-app
+
+
+volumes:
+  scrum-data:
