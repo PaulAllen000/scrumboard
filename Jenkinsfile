@@ -1,61 +1,43 @@
 pipeline {
     agent any
-
+    
     environment {
-        DOCKER_IMAGE = "paulallen000/scrumboard"
-        DOCKER_CONTAINER = "scrumboard-container"
+        DOCKERHUB_CREDENTIALS = credentials('docker-hub-creds')
+        IMAGE_NAME = "your-dockerhub-username/myapp"
     }
-
+    
     stages {
-        stage('Clone Repository') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/PaulAllen000/scrumboard.git'
             }
         }
-
+        
         stage('Build') {
             steps {
-                sh 'mvn clean package'
+                bat 'npm install'
             }
         }
-
+        
         stage('Test') {
             steps {
-                sh 'mvn test'
+                bat 'npm test'
             }
         }
-
+        
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $DOCKER_IMAGE ."
+                bat "docker build -t ${IMAGE_NAME}:${env.BUILD_ID} ."
             }
         }
-
+        
         stage('Push Docker Image') {
             steps {
-                withDockerRegistry([credentialsId: 'docker-hub-credentials', url: 'https://index.docker.io/v1/']) {
-                    sh "docker push $DOCKER_IMAGE"
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+                    bat "docker push ${IMAGE_NAME}:${env.BUILD_ID}"
                 }
             }
-        }
-
-        stage('Deploy') {
-            steps {
-                sh """
-                docker stop $DOCKER_CONTAINER || true
-                docker rm $DOCKER_CONTAINER || true
-                docker run -d --name $DOCKER_CONTAINER -p 8080:8080 $DOCKER_IMAGE
-                """
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "Build and deployment successful!"
-        }
-        failure {
-            echo "Build failed! Check the logs."
         }
     }
 }
