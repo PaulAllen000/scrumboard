@@ -22,9 +22,12 @@ pipeline {
         
         stage('Test') {
             steps {
-                bat 'npm test'
+                dir('scrum-ui') {
+                    bat 'npm install'
+                    bat 'npm test'
+                }
             }
-        }
+        }    
         
         stage('Build Docker Image') {
             steps {
