@@ -15,8 +15,8 @@ pipeline {
         
         stage('Build') {
             steps {
-        bat 'npm install' // Installe les dépendances normales
-        bat 'npm install --only=dev' // Installe Jest et autres devDependencies
+        bat 'npm install' 
+        bat 'npm install --only=dev' 
             }
         }
         
