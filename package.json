@@ -2,10 +2,12 @@
   "name": "scrumboard",
   "version": "1.0.0",
   "scripts": {
-    "start": "node scrum-app/server.js",
     "test": "jest"
   },
   "dependencies": {
     "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
   }
 }
