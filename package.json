@@ -2,10 +2,10 @@
   "name": "scrumboard",
   "version": "1.0.0",
   "scripts": {
-    "start": "node scrum-app/server.js",  // Exemple : si votre app est dans scrum-app/
-    "test": "jest"  // Ou autre outil de test
+    "start": "node scrum-app/server.js",
+    "test": "jest"
   },
   "dependencies": {
-    "express": "^4.18.2"  // Exemple
+    "express": "^4.18.2"
   }
 }
