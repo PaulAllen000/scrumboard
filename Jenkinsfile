@@ -24,8 +24,16 @@ pipeline {
         stage('Setup Node Environment') {
             steps {
                 script {
-                    bat 'node --version'
-                    bat 'npm --version'
+                    // Use Node.js 16.x (LTS) for better Angular compatibility
+                    bat """
+                    nvm use 16.20.2 || (
+                        echo "Installing Node.js 16.20.2"
+                        nvm install 16.20.2
+                        nvm use 16.20.2
+                    )
+                    node --version
+                    npm --version
+                    """
                 }
             }
         }
@@ -34,18 +42,16 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Clean npm cache
-                        bat 'npm cache clean --force'
+                        // Clean npm cache and install dependencies
+                        bat """
+                        npm cache clean --force
+                        npm install
                         
-                        // Install root dependencies
-                        bat 'npm install'
-                        
-                        // Install UI dependencies with legacy peer deps
-                        dir('scrum-ui') {
-                            bat 'npm install --legacy-peer-deps'
-                            // Fix potential security vulnerabilities - Windows compatible command
-                            bat 'npm audit fix --force || exit 0'
-                        }
+                        cd scrum-ui
+                        npm install --legacy-peer-deps
+                        npm audit fix --force || exit 0
+                        cd ..
+                        """
                     } catch (e) {
                         echo "Dependency installation failed: ${e}"
                         archiveArtifacts artifacts: '**/npm-*.log,**/debug.log'
@@ -60,19 +66,22 @@ pipeline {
                 dir('scrum-ui') {
                     script {
                         try {
-                            // Set OpenSSL legacy provider and run tests
-                            bat 'set NODE_OPTIONS=--openssl-legacy-provider && npm test'
-                            // Archive test results if JUnit reporter is configured
+                            // Run tests with proper Angular CLI configuration
+                            bat """
+                            set NODE_OPTIONS=--openssl-legacy-provider
+                            npx ng test --watch=false --code-coverage
+                            """
                             junit '**/test-results.xml'
+                            archiveArtifacts artifacts: '**/coverage/**/*'
                         } catch (e) {
                             echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: '**/karma-*.log'
+                            archiveArtifacts artifacts: '**/karma-*.log,**/angular-errors.log'
                             error 'Tests failed'
                         }
                     }
                 }
             }
-        }    
+        }
         
         stage('Build Docker Image') {
             when {
@@ -102,8 +111,10 @@ pipeline {
                 )]) {
                     script {
                         try {
-                            bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                            bat "docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+                            bat """
+                            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+                            docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
+                            """
                         } catch (e) {
                             echo "Docker push failed: ${e}"
                             error 'Failed to push Docker image'
@@ -117,7 +128,7 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: '**/npm-*.log,**/karma-*.log,**/debug.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/npm-*.log,**/karma-*.log,**/angular-errors.log,**/debug.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
