@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_NAME = "paulallen000/scrum-board"  
+        IMAGE_NAME = "mm0krani/scrum-board"  
         DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
     }
     
@@ -20,12 +20,25 @@ pipeline {
             }
         }
         
-        stage('Install Dependencies') {
+        stage('Clean and Install Dependencies') {
             steps {
-                bat 'npm install'
-                
-                dir('scrum-ui') {
-                    bat 'npm install'
+                script {
+                    try {
+                        // Clean npm cache
+                        bat 'npm cache clean --force'
+                        
+                        // Install root dependencies
+                        bat 'npm install'
+                        
+                        // Install UI dependencies with legacy peer deps
+                        dir('scrum-ui') {
+                            bat 'npm install --legacy-peer-deps || npm install --force'
+                        }
+                    } catch (e) {
+                        echo "Dependency installation failed: ${e}"
+                        archiveArtifacts artifacts: '**/npm-debug.log'
+                        error 'Failed to install dependencies'
+                    }
                 }
             }
         }
@@ -33,7 +46,14 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('scrum-ui') {
-                    bat 'npm test'
+                    script {
+                        try {
+                            bat 'npm test'
+                        } catch (e) {
+                            junit '**/test-results.xml'  // Archive test results if configured
+                            error 'Tests failed'
+                        }
+                    }
                 }
             }
         }    
@@ -41,7 +61,12 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
+                    try {
+                        bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
+                    } catch (e) {
+                        echo "Docker build failed: ${e}"
+                        error 'Failed to build Docker image'
+                    }
                 }
             }
         }
@@ -53,8 +78,15 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                    bat "docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+                    script {
+                        try {
+                            bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                            bat "docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+                        } catch (e) {
+                            echo "Docker push failed: ${e}"
+                            error 'Failed to push Docker image'
+                        }
+                    }
                 }
             }
         }
@@ -63,12 +95,13 @@ pipeline {
     post {
         always {
             cleanWs()
+            archiveArtifacts artifacts: '**/npm-debug.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
         }
         failure {
-            echo "Pipeline failed. Check logs for details."
+            echo "Pipeline failed. Check archived logs for details."
         }
     }
 }
