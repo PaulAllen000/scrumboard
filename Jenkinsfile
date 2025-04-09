@@ -2,10 +2,8 @@ pipeline {
     agent any
     
     environment {
-        environment {
-                    IMAGE_NAME = "paulallen000/scrum-board"  
-                    DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
-        }
+        IMAGE_NAME = "paulallen000/scrum-board"  
+        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
     }
     
     stages {
@@ -22,7 +20,7 @@ pipeline {
             }
         }
         
-                stage('Install Dependencies') {
+        stage('Install Dependencies') {
             steps {
                 bat 'npm install'
                 
@@ -43,7 +41,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    bat "docker build -t ${IMAGE_NAME}:${DOCKER_TAG} ."
+                    bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
                 }
             }
         }
@@ -56,7 +54,7 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                    bat "docker push ${IMAGE_NAME}:${DOCKER_TAG}"
+                    bat "docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
                 }
             }
         }
@@ -67,11 +65,10 @@ pipeline {
             cleanWs()
         }
         success {
-            echo "Pipeline succeeded! Image: ${IMAGE_NAME}:${DOCKER_TAG}"
+            echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
         }
         failure {
             echo "Pipeline failed. Check logs for details."
         }
     }
 }
-
