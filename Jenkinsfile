@@ -3,27 +3,36 @@ pipeline {
     
     environment {
         IMAGE_NAME = "your-dockerhub-username/myapp"
+        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}
     }
     
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', 
-                url: 'https://github.com/PaulAllen000/scrumboard.git'
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: 'main']],
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/PaulAllen000/scrumboard.git'
+                    ]]
+                ])
             }
         }
         
-        stage('Build') {
+                stage('Install Dependencies') {
             steps {
-        bat 'npm install' 
-        bat 'npm install --only=dev' 
-            }
-        }
-        
-        stage('Test') {
-            steps {
+                bat 'npm install'
+                
                 dir('scrum-ui') {
                     bat 'npm install'
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('scrum-ui') {
                     bat 'npm test'
                 }
             }
@@ -31,7 +40,9 @@ pipeline {
         
         stage('Build Docker Image') {
             steps {
-                bat "docker build -t ${IMAGE_NAME}:${env.BUILD_ID} ."
+                script {
+                    bat "docker build -t ${IMAGE_NAME}:${DOCKER_TAG} ."
+                }
             }
         }
         
@@ -42,10 +53,23 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
-                    bat "docker push ${IMAGE_NAME}:${env.BUILD_ID}"
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                    bat "docker push ${IMAGE_NAME}:${DOCKER_TAG}"
                 }
             }
         }
     }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "Pipeline succeeded! Image: ${IMAGE_NAME}:${DOCKER_TAG}"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
+        }
+    }
 }
+
