@@ -3,8 +3,8 @@ pipeline {
     
     environment {
         environment {
-                    IMAGE_NAME = "paulallen000/scrum-board"  
-                    DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
+                    IMAGE_NAME : "paulallen000/scrum-board"  
+                    DOCKER_TAG : "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
         }
     }
     
