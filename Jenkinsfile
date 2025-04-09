@@ -24,7 +24,6 @@ pipeline {
         stage('Setup Node Environment') {
             steps {
                 script {
-                    // Verify Node.js is installed
                     bat 'node --version'
                     bat 'npm --version'
                 }
@@ -44,12 +43,12 @@ pipeline {
                         // Install UI dependencies with legacy peer deps
                         dir('scrum-ui') {
                             bat 'npm install --legacy-peer-deps'
-                            // Fix potential security vulnerabilities
-                            bat 'npm audit fix --force || true'
+                            // Fix potential security vulnerabilities - Windows compatible command
+                            bat 'npm audit fix --force || exit 0'
                         }
                     } catch (e) {
                         echo "Dependency installation failed: ${e}"
-                        archiveArtifacts artifacts: '**/npm-debug.log'
+                        archiveArtifacts artifacts: '**/npm-*.log,**/debug.log'
                         error 'Failed to install dependencies'
                     }
                 }
@@ -118,7 +117,7 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: '**/npm-debug.log,**/karma-*.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/npm-*.log,**/karma-*.log,**/debug.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
