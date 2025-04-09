@@ -2,8 +2,10 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_NAME = "your-dockerhub-username/myapp"
-        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}
+        environment {
+                    IMAGE_NAME = "paulallen000/scrum-board"  
+                    DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
+        }
     }
     
     stages {
