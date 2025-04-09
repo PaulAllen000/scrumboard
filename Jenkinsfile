@@ -28,14 +28,15 @@ pipeline {
                         // Clean and install all dependencies
                         bat """
                         npm cache clean --force
-                        npm install
-                        
                         cd scrum-ui
                         npm install --legacy-peer-deps
-                        npm install @angular/cli @angular-devkit/build-angular --save-dev
-                        npm install karma karma-jasmine karma-chrome-launcher --save-dev
+                        npm install @angular/cli @angular-devkit/build-angular karma karma-jasmine karma-chrome-launcher jasmine-core --save-dev
                         cd ..
                         """
+                        // Verify Angular CLI is available
+                        dir('scrum-ui') {
+                            bat 'npx ng version || echo "Angular CLI verification failed"'
+                        }
                     } catch (e) {
                         echo "Dependency installation failed: ${e}"
                         archiveArtifacts artifacts: 'scrum-ui/npm-debug.log'
@@ -59,7 +60,7 @@ pipeline {
                             archiveArtifacts artifacts: 'coverage/**/*'
                         } catch (e) {
                             echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: 'npm-debug.log,karma.log'
+                            archiveArtifacts artifacts: 'npm-debug.log,karma.log,src/test.ts'
                             error 'Tests failed'
                         }
                     }
