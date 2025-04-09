@@ -21,39 +21,24 @@ pipeline {
             }
         }
         
-        stage('Setup Environment') {
-            steps {
-                script {
-                    // Verify Node.js and npm are available
-                    bat 'node --version'
-                    bat 'npm --version'
-                    
-                    // Install Angular CLI globally if not present
-                    dir('scrum-ui') {
-                        bat 'npm install -g @angular/cli || echo "Angular CLI already installed"'
-                    }
-                }
-            }
-        }
-        
         stage('Install Dependencies') {
             steps {
                 script {
                     try {
-                        // Clean and install dependencies
+                        // Clean and install all dependencies
                         bat """
                         npm cache clean --force
                         npm install
                         
                         cd scrum-ui
                         npm install --legacy-peer-deps
-                        npm install @angular/cli --save-dev
-                        npm audit fix --force || exit 0
+                        npm install @angular/cli @angular-devkit/build-angular --save-dev
+                        npm install karma karma-jasmine karma-chrome-launcher --save-dev
                         cd ..
                         """
                     } catch (e) {
                         echo "Dependency installation failed: ${e}"
-                        archiveArtifacts artifacts: '**/npm-*.log,**/debug.log'
+                        archiveArtifacts artifacts: 'scrum-ui/npm-debug.log'
                         error 'Failed to install dependencies'
                     }
                 }
@@ -65,19 +50,16 @@ pipeline {
                 dir('scrum-ui') {
                     script {
                         try {
-                            // Run tests using locally installed Angular CLI
+                            // Run tests with proper configuration
                             bat """
                             set NODE_OPTIONS=--openssl-legacy-provider
-                            npx ng test --watch=false --code-coverage || (
-                                echo "Test execution failed"
-                                exit 1
-                            )
+                            npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
                             """
                             junit '**/test-results.xml'
-                            archiveArtifacts artifacts: '**/coverage/**/*'
+                            archiveArtifacts artifacts: 'coverage/**/*'
                         } catch (e) {
                             echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: '**/npm-*.log,**/debug.log'
+                            archiveArtifacts artifacts: 'npm-debug.log,karma.log'
                             error 'Tests failed'
                         }
                     }
@@ -130,7 +112,7 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: '**/npm-*.log,**/debug.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'scrum-ui/npm-debug.log,scrum-ui/karma.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
