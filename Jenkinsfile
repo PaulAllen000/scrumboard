@@ -5,9 +5,24 @@ pipeline {
         IMAGE_NAME = "paulallen000/scrum-board"  
         DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
         NODE_OPTIONS = "--openssl-legacy-provider"
+        NODE_VERSION = "18.16.1" // LTS version supported by Angular
     }
     
     stages {
+        stage('Setup Node.js') {
+            steps {
+                script {
+                    // Install and use correct Node version
+                    bat """
+                    nvm install ${env.NODE_VERSION}
+                    nvm use ${env.NODE_VERSION}
+                    node --version
+                    npm --version
+                    """
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 checkout([
@@ -25,7 +40,6 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Clean and install all dependencies
                         bat """
                         npm cache clean --force
                         cd scrum-ui
@@ -33,7 +47,7 @@ pipeline {
                         npm install @angular/cli @angular-devkit/build-angular karma karma-jasmine karma-chrome-launcher jasmine-core --save-dev
                         cd ..
                         """
-                        // Verify Angular CLI is available
+                        
                         dir('scrum-ui') {
                             bat 'npx ng version || echo "Angular CLI verification failed"'
                         }
@@ -46,12 +60,21 @@ pipeline {
             }
         }
         
+        stage('Verify Test Configuration') {
+            steps {
+                dir('scrum-ui') {
+                    script {
+                        bat 'npx ng config projects.scrum-ui.architect.test || echo "Check project configuration"'
+                    }
+                }
+            }
+        }
+        
         stage('Run Tests') {
             steps {
                 dir('scrum-ui') {
                     script {
                         try {
-                            // Run tests with proper configuration
                             bat """
                             set NODE_OPTIONS=--openssl-legacy-provider
                             npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
@@ -68,6 +91,20 @@ pipeline {
             }
         }
         
+        stage('Prepare for Docker Build') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
+            steps {
+                script {
+                    bat """
+                    mkdir dist || echo "Directory exists"
+                    copy scrum-ui\\dist\\* .\\dist\\ || echo "No dist files found"
+                    """
+                }
+            }
+        }
+        
         stage('Build Docker Image') {
             when {
                 expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
@@ -78,6 +115,7 @@ pipeline {
                         bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
                     } catch (e) {
                         echo "Docker build failed: ${e}"
+                        archiveArtifacts artifacts: 'docker-build.log'
                         error 'Failed to build Docker image'
                     }
                 }
@@ -113,13 +151,17 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: 'scrum-ui/npm-debug.log,scrum-ui/karma.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'scrum-ui/npm-debug.log,scrum-ui/karma.log,docker-build.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+            // Optional: Add success notification
         }
         failure {
             echo "Pipeline failed. Check archived logs for details."
+            emailext body: 'Pipeline failed: ${BUILD_URL}', 
+                    subject: 'Pipeline Failed: ${JOB_NAME}', 
+                    to: 'dev-team@example.com'
         }
     }
 }
