@@ -24,11 +24,9 @@ pipeline {
         stage('Setup Node Environment') {
             steps {
                 script {
-                    // Use Node.js 16.x (LTS) for Angular compatibility
-                    nvm(nodeJSInstallationName: 'Node 16.20.2') {
-                        bat 'node --version'
-                        bat 'npm --version'
-                    }
+                    // Verify Node.js is installed
+                    bat 'node --version'
+                    bat 'npm --version'
                 }
             }
         }
