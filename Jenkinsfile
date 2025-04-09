@@ -2,8 +2,9 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_NAME = "mm0krani/scrum-board"  
-        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"  
+        IMAGE_NAME = "paulallen000/scrum-board"  
+        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
+        NODE_OPTIONS = "--openssl-legacy-provider"
     }
     
     stages {
@@ -20,6 +21,18 @@ pipeline {
             }
         }
         
+        stage('Setup Node Environment') {
+            steps {
+                script {
+                    // Use Node.js 16.x (LTS) for Angular compatibility
+                    nvm(nodeJSInstallationName: 'Node 16.20.2') {
+                        bat 'node --version'
+                        bat 'npm --version'
+                    }
+                }
+            }
+        }
+        
         stage('Clean and Install Dependencies') {
             steps {
                 script {
@@ -32,7 +45,9 @@ pipeline {
                         
                         // Install UI dependencies with legacy peer deps
                         dir('scrum-ui') {
-                            bat 'npm install --legacy-peer-deps || npm install --force'
+                            bat 'npm install --legacy-peer-deps'
+                            // Fix potential security vulnerabilities
+                            bat 'npm audit fix --force || true'
                         }
                     } catch (e) {
                         echo "Dependency installation failed: ${e}"
@@ -48,9 +63,13 @@ pipeline {
                 dir('scrum-ui') {
                     script {
                         try {
-                            bat 'npm test'
+                            // Set OpenSSL legacy provider and run tests
+                            bat 'set NODE_OPTIONS=--openssl-legacy-provider && npm test'
+                            // Archive test results if JUnit reporter is configured
+                            junit '**/test-results.xml'
                         } catch (e) {
-                            junit '**/test-results.xml'  // Archive test results if configured
+                            echo "Tests failed: ${e}"
+                            archiveArtifacts artifacts: '**/karma-*.log'
                             error 'Tests failed'
                         }
                     }
@@ -59,6 +78,9 @@ pipeline {
         }    
         
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script {
                     try {
@@ -72,6 +94,9 @@ pipeline {
         }
         
         stage('Push Docker Image') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-hub-creds',
@@ -95,7 +120,7 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: '**/npm-debug.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/npm-debug.log,**/karma-*.log', allowEmptyArchive: true
         }
         success {
             echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
