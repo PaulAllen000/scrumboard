@@ -70,4 +70,22 @@ pipeline {
                 script {
                     try {
                         bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
-                    } catch (e
+                    } catch (e) {
+                        echo "Docker build failed: ${e}"
+                        error 'Failed to build Docker image'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+            archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
+        }
+        failure {
+            echo "Pipeline failed. Check archived logs for details."
+        }
+    }
+}
