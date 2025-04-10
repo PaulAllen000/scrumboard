@@ -34,17 +34,17 @@ pipeline {
                             bat """
                             npm cache clean --force
                             npm install --legacy-peer-deps
-                            npm install @angular/cli @angular-devkit/build-angular karma karma-jasmine karma-chrome-launcher jasmine-core --save-dev
                             """
-                        } catch (e) {
-                            echo "Dependency installation failed: ${e}"
-                            archiveArtifacts artifacts: 'npm-debug.log'
-                            error 'Failed to install dependencies'
-                        }
+                    } catch (e) {
+                        echo "Dependency installation failed: ${e}"
+                        archiveArtifacts artifacts: 'npm-debug.log'
+                        error 'Failed to install dependencies'
                     }
                 }
             }
         }
+    }
+
         
         stage('Run Tests') {
             steps {
@@ -57,15 +57,16 @@ pipeline {
                             """
                             junit '**/test-results.xml'
                             archiveArtifacts artifacts: 'coverage/**/*'
-                        } catch (e) {
-                            echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: 'npm-debug.log,karma.log,src/test.ts'
-                            error 'Tests failed'
-                        }
+                    } catch (e) {
+                        echo "Tests failed: ${e}"
+                        archiveArtifacts artifacts: '**/karma.log,**/src/test.ts', allowEmptyArchive: true
+                        error 'Tests failed'
                     }
                 }
             }
         }
+    }
+
         
         stage('Build Docker Image') {
             when {
