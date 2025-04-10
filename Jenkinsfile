@@ -52,20 +52,20 @@ pipeline {
                     script {
                         try {
                             bat """
-                            set NODE_OPTIONS=--openssl-legacy-provider
-                            npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
+                            npx jest --coverage
                             """
-                            junit '**/test-results.xml'
+                            junit 'coverage/junit.xml' // Optional: if using jest-junit
                             archiveArtifacts artifacts: 'coverage/**/*'
                     } catch (e) {
-                        echo "Tests failed: ${e}"
-                        archiveArtifacts artifacts: '**/karma.log,**/src/test.ts', allowEmptyArchive: true
-                        error 'Tests failed'
+                            echo "Tests failed: ${e}"
+                            archiveArtifacts artifacts: '**/jest.log', allowEmptyArchive: true
+                            error 'Tests failed'
                     }
                 }
             }
         }
     }
+
 
         
         stage('Build Docker Image') {
