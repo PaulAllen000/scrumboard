@@ -5,17 +5,14 @@ pipeline {
         IMAGE_NAME = "paulallen000/scrum-board"  
         DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
         NODE_OPTIONS = "--openssl-legacy-provider"
-        NODE_VERSION = "18.16.1" // LTS version supported by Angular
     }
     
     stages {
         stage('Setup Node.js') {
             steps {
                 script {
-                    // Install and use correct Node version
+                    // Install supported Node.js version using Jenkins NodeJS plugin
                     bat """
-                    nvm install ${env.NODE_VERSION}
-                    nvm use ${env.NODE_VERSION}
                     node --version
                     npm --version
                     """
@@ -25,46 +22,26 @@ pipeline {
         
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: 'main']],
-                    extensions: [],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/PaulAllen000/scrumboard.git'
-                    ]]
-                ])
+                checkout scm
             }
         }
         
         stage('Install Dependencies') {
             steps {
-                script {
-                    try {
-                        bat """
-                        npm cache clean --force
-                        cd scrum-ui
-                        npm install --legacy-peer-deps
-                        npm install @angular/cli @angular-devkit/build-angular karma karma-jasmine karma-chrome-launcher jasmine-core --save-dev
-                        cd ..
-                        """
-                        
-                        dir('scrum-ui') {
-                            bat 'npx ng version || echo "Angular CLI verification failed"'
-                        }
-                    } catch (e) {
-                        echo "Dependency installation failed: ${e}"
-                        archiveArtifacts artifacts: 'scrum-ui/npm-debug.log'
-                        error 'Failed to install dependencies'
-                    }
-                }
-            }
-        }
-        
-        stage('Verify Test Configuration') {
-            steps {
                 dir('scrum-ui') {
                     script {
-                        bat 'npx ng config projects.scrum-ui.architect.test || echo "Check project configuration"'
+                        try {
+                            // Clean and install all dependencies
+                            bat """
+                            npm cache clean --force
+                            npm install --legacy-peer-deps
+                            npm install @angular/cli @angular-devkit/build-angular karma karma-jasmine karma-chrome-launcher jasmine-core --save-dev
+                            """
+                        } catch (e) {
+                            echo "Dependency installation failed: ${e}"
+                            archiveArtifacts artifacts: 'npm-debug.log'
+                            error 'Failed to install dependencies'
+                        }
                     }
                 }
             }
@@ -91,20 +68,6 @@ pipeline {
             }
         }
         
-        stage('Prepare for Docker Build') {
-            when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
-            }
-            steps {
-                script {
-                    bat """
-                    mkdir dist || echo "Directory exists"
-                    copy scrum-ui\\dist\\* .\\dist\\ || echo "No dist files found"
-                    """
-                }
-            }
-        }
-        
         stage('Build Docker Image') {
             when {
                 expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
@@ -115,7 +78,6 @@ pipeline {
                         bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
                     } catch (e) {
                         echo "Docker build failed: ${e}"
-                        archiveArtifacts artifacts: 'docker-build.log'
                         error 'Failed to build Docker image'
                     }
                 }
@@ -151,16 +113,10 @@ pipeline {
     post {
         always {
             cleanWs()
-            archiveArtifacts artifacts: 'scrum-ui/npm-debug.log,scrum-ui/karma.log,docker-build.log', allowEmptyArchive: true
-        }
-        success {
-            echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+            archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
         }
         failure {
             echo "Pipeline failed. Check archived logs for details."
-            emailext body: 'Pipeline failed: ${BUILD_URL}', 
-                    subject: 'Pipeline Failed: ${JOB_NAME}', 
-                    to: 'dev-team@example.com'
         }
     }
 }
