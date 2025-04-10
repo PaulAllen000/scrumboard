@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = "paulallen000/scrum-board"  
         DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
         NODE_OPTIONS = "--openssl-legacy-provider"
-        NODE_VERSION = "18.16.1" // LTS version supported by Angular
+        NODE_VERSION = "18.16.1" 
     }
     
     stages {
@@ -136,32 +136,4 @@ pipeline {
                         try {
                             bat """
                             echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-                            docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
-                            """
-                        } catch (e) {
-                            echo "Docker push failed: ${e}"
-                            error 'Failed to push Docker image'
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            cleanWs()
-            archiveArtifacts artifacts: 'scrum-ui/npm-debug.log,scrum-ui/karma.log,docker-build.log', allowEmptyArchive: true
-        }
-        success {
-            echo "Pipeline succeeded! Image: ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
-            // Optional: Add success notification
-        }
-        failure {
-            echo "Pipeline failed. Check archived logs for details."
-            emailext body: 'Pipeline failed: ${BUILD_URL}', 
-                    subject: 'Pipeline Failed: ${JOB_NAME}', 
-                    to: 'dev-team@example.com'
-        }
-    }
-}
+                            docker push ${env.IMAGE_NAME}:${env.DOCKER
