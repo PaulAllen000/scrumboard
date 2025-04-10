@@ -31,6 +31,7 @@ pipeline {
                     script {
                         try {
                             bat """
+                            rd /s /q node_modules
                             npm cache clean --force
                             npm install --legacy-peer-deps
                             """
@@ -38,11 +39,12 @@ pipeline {
                             echo "Dependency installation failed: ${e}"
                             archiveArtifacts artifacts: 'npm-debug.log', allowEmptyArchive: true
                             error 'Failed to install dependencies'
-                        }
                     }
                 }
             }
         }
+    }
+
 
         stage('Run Tests') {
             steps {
