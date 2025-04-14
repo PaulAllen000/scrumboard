@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        // Environment variables
+        // SSL Configuration
+        GIT_SSL_NO_VERIFY = "1"  // Temporary workaround
+        // Docker tag variable
         DOCKER_TAG = ''
-        GIT_SSL_NO_VERIFY = "1"  // Temporary SSL workaround
     }
 
     options {
@@ -13,15 +14,18 @@ pipeline {
     }
 
     stages {
-        stage('Configure Git') {
+        stage('Configure Environment') {
             steps {
                 script {
-                    // Permanent Git SSL configuration for Windows
+                    // Configure Git to use Windows native SSL
                     bat '''
                         git config --system http.sslBackend schannel
                         git config --global http.sslVerify false
                         git config --global --add safe.directory *
                     '''
+                    // Verify tools are available
+                    bat 'git --version'
+                    bat 'docker --version'
                 }
             }
         }
@@ -32,11 +36,13 @@ pipeline {
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: 'main']],
-                        extensions: [[$class: 'CloneOption', timeout: 30]],
+                        extensions: [
+                            [$class: 'CloneOption', timeout: 30],
+                            [$class: 'CleanBeforeCheckout']
+                        ],
                         gitTool: 'Default',
                         userRemoteConfigs: [[
-                            url: 'https://github.com/PaulAllen000/scrumboard.git',
-                            credentialsId: ''
+                            url: 'https://github.com/PaulAllen000/scrumboard.git'
                         ]]
                     ])
                 }
@@ -89,9 +95,11 @@ pipeline {
         always {
             script {
                 node {
-                    // Archive test results and logs
-                    junit '**/test-results.xml'
+                    // Archive test results if they exist
+                    junit testResults: '**/test-results.xml', allowEmptyResults: true
+                    // Archive other logs
                     archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*', allowEmptyArchive: true
+                    // Clean workspace
                     cleanWs()
                 }
             }
