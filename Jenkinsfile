@@ -2,38 +2,41 @@ pipeline {
     agent any
 
     environment {
+        // Environment variables
         DOCKER_TAG = ''
-        // Temporary SSL workaround if needed
-        GIT_SSL_NO_VERIFY = "1" 
+        GIT_SSL_NO_VERIFY = "1"  // Temporary SSL workaround
     }
 
     options {
         timeout(time: 30, unit: 'MINUTES')
-        retry(3) // Retry the entire pipeline if failed
+        retry(2) // Retry entire pipeline if failed
     }
 
     stages {
-        stage('Verify Environment') {
+        stage('Configure Git') {
             steps {
                 script {
-                    // Verify Git is available
-                    bat 'git --version'
-                    
-                    // Temporary SSL fix if certificate issues persist
-                    bat 'git config --global http.sslVerify false'
+                    // Permanent Git SSL configuration for Windows
+                    bat '''
+                        git config --system http.sslBackend schannel
+                        git config --global http.sslVerify false
+                        git config --global --add safe.directory *
+                    '''
                 }
             }
         }
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 retry(3) {
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: 'main']],
-                        extensions: [],
+                        extensions: [[$class: 'CloneOption', timeout: 30]],
+                        gitTool: 'Default',
                         userRemoteConfigs: [[
-                            url: 'https://github.com/PaulAllen000/scrumboard.git'
+                            url: 'https://github.com/PaulAllen000/scrumboard.git',
+                            credentialsId: ''
                         ]]
                     ])
                 }
@@ -43,9 +46,10 @@ pipeline {
         stage('Build') {
             steps {
                 script {
+                    // Get short commit hash for Docker tag
                     def commitHash = bat(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.DOCKER_TAG = "my-app:${commitHash}"
-                    echo "Docker tag: ${env.DOCKER_TAG}"
+                    echo "Generated Docker tag: ${env.DOCKER_TAG}"
                 }
             }
         }
@@ -58,9 +62,7 @@ pipeline {
                             bat 'npm install'
                             bat 'npm test'
                         } catch (e) {
-                            echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: '**/test-results.xml,**/coverage/**/*'
-                            error 'Tests failed'
+                            error "Tests failed: ${e}"
                         }
                     }
                 }
@@ -68,14 +70,15 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
                 script {
                     try {
                         bat "docker build -t ${env.DOCKER_TAG} ."
                     } catch (e) {
-                        echo "Docker build failed: ${e}"
-                        archiveArtifacts artifacts: 'docker-build.log'
-                        error 'Failed to build Docker image'
+                        error "Docker build failed: ${e}"
                     }
                 }
             }
@@ -85,15 +88,16 @@ pipeline {
     post {
         always {
             script {
-                node { // Required for cleanWs on Windows
+                node {
+                    // Archive test results and logs
+                    junit '**/test-results.xml'
+                    archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*', allowEmptyArchive: true
                     cleanWs()
-                    archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log,**/docker-build.log', allowEmptyArchive: true
                 }
             }
         }
         failure {
             echo "Pipeline failed. Check archived logs for details."
-            // Optional: Add notification here
         }
         success {
             echo "Successfully built Docker image: ${env.DOCKER_TAG}"
