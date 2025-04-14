@@ -1,68 +1,54 @@
 pipeline {
     agent any
-
     environment {
-        // SSL Configuration
-        GIT_SSL_NO_VERIFY = "1"  // Temporary workaround
-        // Docker tag variable
-        DOCKER_TAG = ''
+        DOCKER_IMAGE_NAME = "my-docker-image"
+        DOCKER_TAG = "latest"
     }
-
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        retry(2) // Retry entire pipeline if failed
-    }
-
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Configure Environment') {
             steps {
                 script {
-                    // Configure Git to use Windows native SSL
-                    bat 'git config --system http.sslBackend schannel'
-                    bat 'git config --global http.sslVerify false'
-                    bat 'git config --global --add safe.directory *'
-                    
-                    // Verify tools are available
-                    bat 'git --version'
-                    bat 'docker --version'
+                    // Git configuration commands to avoid SSL issues
+                    bat "git config --system http.sslBackend schannel"
+                    bat "git config --global http.sslVerify false"
+                    bat "git config --global --add safe.directory *"
+                    bat "git --version"
+                    bat "docker --version"
                 }
             }
         }
 
-        stage('Checkout Code') {
-            steps {
-                retry(3) {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: 'main']],
-                        extensions: [
-                            [$class: 'CloneOption', timeout: 30],
-                            [$class: 'CleanBeforeCheckout']
-                        ],
-                        gitTool: 'Default',
-                        userRemoteConfigs: [[url: 'https://github.com/PaulAllen000/scrumboard.git']]
-                    ])
-                }
-            }
-        }
-
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
                 script {
-                    // Get short commit hash for Docker tag
-                    def commitHash = bat(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.DOCKER_TAG = "my-app:${commitHash}"
-                    echo "Generated Docker tag: ${env.DOCKER_TAG}"
+                    // Run npm install with --legacy-peer-deps to bypass the dependency conflict
+                    bat 'npm install --legacy-peer-deps'
                 }
             }
         }
 
-        stage('Test') {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build Docker image
+                    echo "Building Docker Image"
+                    bat "docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_TAG} ."
+                }
+            }
+        }
+
+        stage('Run Tests') {
             steps {
                 dir('scrum-ui') {
                     script {
                         try {
-                            bat 'npm install'
+                            // Run tests after npm install
                             bat 'npm test'
                         } catch (e) {
                             error "Tests failed: ${e}"
@@ -72,38 +58,18 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
-            }
+        stage('Post Actions') {
             steps {
-                script {
-                    try {
-                        bat "docker build -t ${env.DOCKER_TAG} ."
-                    } catch (e) {
-                        error "Docker build failed: ${e}"
-                    }
-                }
+                junit '**/test-*.xml'  // Collect test results if applicable
+                archiveArtifacts artifacts: '**/build/libs/*.jar', allowEmptyArchive: true
+                cleanWs()  // Clean up workspace after job completes
             }
         }
     }
 
     post {
-        always {
-            script {
-                // Archive test results if they exist
-                junit testResults: '**/test-results.xml', allowEmptyResults: true
-                // Archive other logs
-                archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*', allowEmptyArchive: true
-                // Clean workspace
-                cleanWs()
-            }
-        }
         failure {
-            echo "Pipeline failed. Check archived logs for details."
-        }
-        success {
-            echo "Successfully built Docker image: ${env.DOCKER_TAG}"
+            echo "Pipeline failed. Check the logs for details."
         }
     }
 }
