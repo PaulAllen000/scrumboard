@@ -3,20 +3,47 @@ pipeline {
 
     environment {
         DOCKER_TAG = ''
+        // Temporary SSL workaround if needed
+        GIT_SSL_NO_VERIFY = "1" 
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        retry(3) // Retry the entire pipeline if failed
     }
 
     stages {
+        stage('Verify Environment') {
+            steps {
+                script {
+                    // Verify Git is available
+                    bat 'git --version'
+                    
+                    // Temporary SSL fix if certificate issues persist
+                    bat 'git config --global http.sslVerify false'
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
-                checkout scm
+                retry(3) {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: 'main']],
+                        extensions: [],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/PaulAllen000/scrumboard.git'
+                        ]]
+                    ])
+                }
             }
         }
 
         stage('Build') {
             steps {
                 script {
-                    // Exemple : générer un tag Docker en fonction du commit
-                    def commitHash = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    def commitHash = bat(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.DOCKER_TAG = "my-app:${commitHash}"
                     echo "Docker tag: ${env.DOCKER_TAG}"
                 }
@@ -25,27 +52,51 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo 'Running tests...'
-                // Exemple : sh 'npm test'
+                dir('scrum-ui') {
+                    script {
+                        try {
+                            bat 'npm install'
+                            bat 'npm test'
+                        } catch (e) {
+                            echo "Tests failed: ${e}"
+                            archiveArtifacts artifacts: '**/test-results.xml,**/coverage/**/*'
+                            error 'Tests failed'
+                        }
+                    }
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image with tag ${env.DOCKER_TAG}"
-                // Exemple : sh "docker build -t ${env.DOCKER_TAG} ."
+                script {
+                    try {
+                        bat "docker build -t ${env.DOCKER_TAG} ."
+                    } catch (e) {
+                        echo "Docker build failed: ${e}"
+                        archiveArtifacts artifacts: 'docker-build.log'
+                        error 'Failed to build Docker image'
+                    }
+                }
             }
         }
     }
 
     post {
         always {
-            cleanWs()
-            archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
+            script {
+                node { // Required for cleanWs on Windows
+                    cleanWs()
+                    archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log,**/docker-build.log', allowEmptyArchive: true
+                }
+            }
         }
-
         failure {
             echo "Pipeline failed. Check archived logs for details."
+            // Optional: Add notification here
+        }
+        success {
+            echo "Successfully built Docker image: ${env.DOCKER_TAG}"
         }
     }
 }
