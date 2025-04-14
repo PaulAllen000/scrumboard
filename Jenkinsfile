@@ -7,12 +7,11 @@ pipeline {
 
     environment {
         IMAGE_NAME = "paulallen000/scrum-board"
-        DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
         NODE_OPTIONS = "--openssl-legacy-provider"
     }
 
     options {
-        skipDefaultCheckout() // Pour éviter le checkout automatique avant config SSL
+        skipDefaultCheckout()
     }
 
     stages {
@@ -28,14 +27,21 @@ pipeline {
             }
         }
 
-        stage('Setup Node.js') {
+        stage('Setup Variables') {
             steps {
                 script {
-                    bat """
-                    node --version
-                    npm --version
-                    """
+                    env.DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
+                    echo "Docker tag: ${env.DOCKER_TAG}"
                 }
+            }
+        }
+
+        stage('Setup Node.js') {
+            steps {
+                bat '''
+                node --version
+                npm --version
+                '''
             }
         }
 
@@ -44,11 +50,11 @@ pipeline {
                 dir('scrum-ui') {
                     script {
                         try {
-                            bat """
+                            bat '''
                             rd /s /q node_modules
                             npm cache clean --force
                             npm install --legacy-peer-deps
-                            """
+                            '''
                         } catch (e) {
                             echo "Dependency installation failed: ${e}"
                             archiveArtifacts artifacts: 'npm-debug.log', allowEmptyArchive: true
@@ -65,7 +71,7 @@ pipeline {
                     script {
                         try {
                             bat "npx jest --coverage"
-                            junit 'coverage/junit.xml' // Optional: if jest-junit is used
+                            junit 'coverage/junit.xml' // si jest-junit est configuré
                             archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
                         } catch (e) {
                             echo "Tests failed: ${e}"
@@ -96,8 +102,10 @@ pipeline {
 
     post {
         always {
-            cleanWs()
-            archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
+            node {
+                cleanWs()
+                archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
+            }
         }
         failure {
             echo "Pipeline failed. Check archived logs for details."
