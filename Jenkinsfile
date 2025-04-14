@@ -13,6 +13,11 @@ pipeline {
     
     
     stages {
+        stage('Préparer Git SSL') {
+            steps {
+                bat 'git config --global http.sslCAInfo "D:/Git/mingw64/ssl/certs/ca-bundle.crt"'
+            }
+        }
         stage('Checkout') {
             steps {
                 checkout scm
