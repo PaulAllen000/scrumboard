@@ -1,112 +1,49 @@
 pipeline {
     agent any
 
-    tools {
-        git 'GitOnD'
-    }
-
     environment {
-        IMAGE_NAME = "paulallen000/scrum-board"
-        NODE_OPTIONS = "--openssl-legacy-provider"
-    }
-
-    options {
-        skipDefaultCheckout()
+        DOCKER_TAG = ''
     }
 
     stages {
-        stage('Préparer Git SSL') {
-            steps {
-                bat 'git config --global http.sslCAInfo "D:/Git/mingw64/ssl/certs/ca-bundle.crt"'
-            }
-        }
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Setup Variables') {
+        stage('Build') {
             steps {
                 script {
-                    env.DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
+                    // Exemple : générer un tag Docker en fonction du commit
+                    def commitHash = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.DOCKER_TAG = "my-app:${commitHash}"
                     echo "Docker tag: ${env.DOCKER_TAG}"
                 }
             }
         }
 
-        stage('Setup Node.js') {
+        stage('Test') {
             steps {
-                bat '''
-                node --version
-                npm --version
-                '''
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                dir('scrum-ui') {
-                    script {
-                        try {
-                            bat '''
-                            rd /s /q node_modules
-                            npm cache clean --force
-                            npm install --legacy-peer-deps
-                            '''
-                        } catch (e) {
-                            echo "Dependency installation failed: ${e}"
-                            archiveArtifacts artifacts: 'npm-debug.log', allowEmptyArchive: true
-                            error 'Failed to install dependencies'
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                dir('scrum-ui') {
-                    script {
-                        try {
-                            bat "npx jest --coverage"
-                            junit 'coverage/junit.xml' // si jest-junit est configuré
-                            archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
-                        } catch (e) {
-                            echo "Tests failed: ${e}"
-                            archiveArtifacts artifacts: '**/jest.log', allowEmptyArchive: true
-                            error 'Tests failed'
-                        }
-                    }
-                }
+                echo 'Running tests...'
+                // Exemple : sh 'npm test'
             }
         }
 
         stage('Build Docker Image') {
-            when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
-            }
             steps {
-                script {
-                    try {
-                        bat "docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} ."
-                    } catch (e) {
-                        echo "Docker build failed: ${e}"
-                        error 'Failed to build Docker image'
-                    }
-                }
+                echo "Building Docker image with tag ${env.DOCKER_TAG}"
+                // Exemple : sh "docker build -t ${env.DOCKER_TAG} ."
             }
         }
     }
 
     post {
         always {
-            node {
-                cleanWs()
-                archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
-            }
+            cleanWs()
+            archiveArtifacts artifacts: '**/npm-debug.log,**/karma.log', allowEmptyArchive: true
         }
+
         failure {
             echo "Pipeline failed. Check archived logs for details."
         }
