@@ -1,6 +1,6 @@
 pipeline {
     agent any
-    
+
     tools {
         git 'GitOnD'
     }
@@ -10,14 +10,18 @@ pipeline {
         DOCKER_TAG = "${env.BUILD_ID}-${env.GIT_COMMIT.take(7)}"
         NODE_OPTIONS = "--openssl-legacy-provider"
     }
-    
-    
+
+    options {
+        skipDefaultCheckout() // Pour éviter le checkout automatique avant config SSL
+    }
+
     stages {
         stage('Préparer Git SSL') {
             steps {
                 bat 'git config --global http.sslCAInfo "D:/Git/mingw64/ssl/certs/ca-bundle.crt"'
             }
         }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -49,12 +53,11 @@ pipeline {
                             echo "Dependency installation failed: ${e}"
                             archiveArtifacts artifacts: 'npm-debug.log', allowEmptyArchive: true
                             error 'Failed to install dependencies'
+                        }
                     }
                 }
             }
         }
-    }
-
 
         stage('Run Tests') {
             steps {
