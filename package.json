@@ -1,9 +1,10 @@
 {
   "scripts": {
-    "test": "jest --coverage",
-    "test:ci": "jest --coverage --reporters=default --reporters=jest-junit",
-    "install:ci": "npm install --legacy-peer-deps --loglevel verbose"
-  },
+  "test": "jest --coverage",
+  "test:ci": "jest --coverage --reporters=default --reporters=jest-junit",
+  "install:ci": "npm install --legacy-peer-deps --loglevel verbose",
+  "build": "ng build --configuration production"
+},
   "devDependencies": {
     "@angular/core": "^17.0.0",
     "@angular/common": "^17.0.0",
