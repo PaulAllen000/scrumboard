@@ -1,34 +1,67 @@
 pipeline {
     agent any
+    
     environment {
         DOCKER_IMAGE_NAME = "my-docker-image"
         DOCKER_TAG = "latest"
+        // Temporary SSL workaround
+        GIT_SSL_NO_VERIFY = "1"
     }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        retry(2) // Retry entire pipeline if failed
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                retry(3) {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: 'main']],
+                        extensions: [
+                            [$class: 'CloneOption', timeout: 30],
+                            [$class: 'CleanBeforeCheckout']
+                        ],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/PaulAllen000/scrumboard.git'
+                        ]]
+                    ])
+                }
             }
         }
 
         stage('Configure Environment') {
             steps {
                 script {
-                    // Git configuration commands to avoid SSL issues
-                    bat "git config --system http.sslBackend schannel"
-                    bat "git config --global http.sslVerify false"
-                    bat "git config --global --add safe.directory *"
-                    bat "git --version"
-                    bat "docker --version"
+                    // Permanent Git SSL configuration for Windows
+                    bat """
+                        git config --system http.sslBackend schannel
+                        git config --global http.sslVerify false
+                        git config --global --add safe.directory *
+                    """
+                    // Verify tools
+                    bat 'git --version'
+                    bat 'docker --version'
+                    bat 'node --version'
+                    bat 'npm --version'
                 }
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                script {
-                    // Run npm install with --legacy-peer-deps to bypass the dependency conflict
-                    bat 'npm install --legacy-peer-deps'
+                dir('scrum-ui') {
+                    script {
+                        try {
+                            bat 'npm install --legacy-peer-deps'
+                            // Install Angular CLI if needed
+                            bat 'npm install -g @angular/cli'
+                        } catch (e) {
+                            error "Dependency installation failed: ${e}"
+                        }
+                    }
                 }
             }
         }
@@ -36,9 +69,16 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build Docker image
-                    echo "Building Docker Image"
-                    bat "docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_TAG} ."
+                    try {
+                        // Build with cache and proper tagging
+                        bat """
+                            docker build \
+                                --build-arg NODE_ENV=production \
+                                -t ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG} .
+                        """
+                    } catch (e) {
+                        error "Docker build failed: ${e}"
+                    }
                 }
             }
         }
@@ -48,28 +88,37 @@ pipeline {
                 dir('scrum-ui') {
                     script {
                         try {
-                            // Run tests after npm install
-                            bat 'npm test'
+                            // Run tests with proper configuration
+                            bat """
+                                set NODE_OPTIONS=--openssl-legacy-provider
+                                npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
+                            """
                         } catch (e) {
+                            archiveArtifacts artifacts: '**/test-results.xml,**/coverage/**/*'
                             error "Tests failed: ${e}"
                         }
                     }
                 }
             }
         }
-
-        stage('Post Actions') {
-            steps {
-                junit '**/test-*.xml'  // Collect test results if applicable
-                archiveArtifacts artifacts: '**/build/libs/*.jar', allowEmptyArchive: true
-                cleanWs()  // Clean up workspace after job completes
-            }
-        }
     }
 
     post {
+        always {
+            script {
+                node {
+                    // Archive test results and logs
+                    junit '**/test-results.xml'
+                    archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*', allowEmptyArchive: true
+                    cleanWs()
+                }
+            }
+        }
         failure {
-            echo "Pipeline failed. Check the logs for details."
+            echo "Pipeline failed. Check archived logs for details."
+        }
+        success {
+            echo "Successfully built Docker image: ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG}"
         }
     }
 }
