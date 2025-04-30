@@ -17,4 +17,5 @@ RUN npm install -g http-server
 COPY --from=builder /app/dist/scrum-ui /app
 
 EXPOSE 8080
+
 CMD ["http-server", ".", "-p", "8080"]
