@@ -1,13 +1,20 @@
+FROM node:20 AS builder
 
-FROM node:12.7-alpine AS build
-WORKDIR /usr/src/app
-COPY package.json ./
-RUN npm install
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
 COPY . .
-RUN npm run build
+RUN npx ng build --configuration production
 
+FROM node:20 AS runner
 
-FROM nginx:1.17.1-alpine
-COPY default.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /usr/src/app/dist/scrum-ui /usr/share/nginx/html
-EXPOSE 80
+WORKDIR /app
+
+RUN npm install -g http-server
+
+COPY --from=builder /app/dist/scrum-ui /app
+
+EXPOSE 8080
+CMD ["http-server", ".", "-p", "8080"]
