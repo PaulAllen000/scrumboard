@@ -1,16 +1,15 @@
 pipeline {
     agent any
-    
+
     environment {
         DOCKER_IMAGE_NAME = "my-docker-image"
         DOCKER_TAG = "latest"
-        // Temporary SSL workaround
         GIT_SSL_NO_VERIFY = "1"
     }
 
     options {
         timeout(time: 30, unit: 'MINUTES')
-        retry(2) // Retry entire pipeline if failed
+        retry(2)
     }
 
     stages {
@@ -34,13 +33,11 @@ pipeline {
         stage('Configure Environment') {
             steps {
                 script {
-                    // Permanent Git SSL configuration for Windows
                     bat """
                         git config --system http.sslBackend schannel
                         git config --global http.sslVerify false
                         git config --global --add safe.directory *
                     """
-                    // Verify tools
                     bat 'git --version'
                     bat 'docker --version'
                     bat 'node --version'
@@ -55,7 +52,6 @@ pipeline {
                     script {
                         try {
                             bat 'npm install --legacy-peer-deps'
-                            // Install Angular CLI if needed
                             bat 'npm install -g @angular/cli'
                         } catch (e) {
                             error "Dependency installation failed: ${e}"
@@ -66,40 +62,34 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-    steps {
-        dir('.') { // Explicitly ensure we are in the root directory
-            script {
-                try {
-                    // Debugging: Print current directory and contents
-                    bat 'cd'
-                    bat 'dir'
-
-                    // Build Docker image from the root where Dockerfile is located
-                    bat """
-                        docker build ^
-                            --build-arg NODE_ENV=production ^
-                            -t ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG} .
-                    """
-                } catch (e) {
-                    error "Docker build failed: ${e}"
+            steps {
+                dir('.') {
+                    script {
+                        try {
+                            bat 'cd'
+                            bat 'dir'
+                            bat """
+                                docker build ^
+                                    --build-arg NODE_ENV=production ^
+                                    -t ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG} .
+                            """
+                        } catch (e) {
+                            error "Docker build failed: ${e}"
+                        }
                     }
                 }
             }
         }
-    }
 
         stage('Run Tests') {
             steps {
                 dir('scrum-ui') {
                     script {
                         try {
-                            // Run tests with proper configuration
-                            bat """
-                                set NODE_OPTIONS=--openssl-legacy-provider
-                                npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
-                            """
+                            // Run Jest tests with CI configuration
+                            bat 'npm run test:ci'
                         } catch (e) {
-                            archiveArtifacts artifacts: '**/test-results.xml,**/coverage/**/*'
+                            archiveArtifacts artifacts: '**/coverage/**/*'
                             error "Tests failed: ${e}"
                         }
                     }
@@ -112,9 +102,9 @@ pipeline {
         always {
             script {
                 node {
-                    // Archive test results and logs
-                    junit '**/test-results.xml'
-                    archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*', allowEmptyArchive: true
+                    // Archive JUnit test results for Jenkins
+                    junit 'scrum-ui/junit.xml'
+                    archiveArtifacts artifacts: '**/npm-debug.log,**/test-results/**/*,**/coverage/**/*', allowEmptyArchive: true
                     cleanWs()
                 }
             }
