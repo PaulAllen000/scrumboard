@@ -67,21 +67,27 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            steps {
-                script {
-                    try {
-                        // Build with cache and proper tagging
-                        bat """
-                            docker build \
-                                --build-arg NODE_ENV=production \
-                                -t ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG} .
-                        """
-                    } catch (e) {
-                        error "Docker build failed: ${e}"
+    steps {
+        dir('.') { // Explicitly ensure we are in the root directory
+            script {
+                try {
+                    // Debugging: Print current directory and contents
+                    bat 'cd'
+                    bat 'dir'
+
+                    // Build Docker image from the root where Dockerfile is located
+                    bat """
+                        docker build ^
+                            --build-arg NODE_ENV=production ^
+                            -t ${env.DOCKER_IMAGE_NAME}:${env.DOCKER_TAG} .
+                    """
+                } catch (e) {
+                    error "Docker build failed: ${e}"
                     }
                 }
             }
         }
+    }
 
         stage('Run Tests') {
             steps {
