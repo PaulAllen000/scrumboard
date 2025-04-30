@@ -27,7 +27,6 @@
               "src/styles.css"
             ],
             "scripts": []
-
           },
           "configurations": {
             "production": {
@@ -133,5 +132,7 @@
       }
     }
   },
-  "defaultProject": "scrum-ui"
+  "cli": {
+    "defaultProject": "scrum-ui"
+  }
 }
