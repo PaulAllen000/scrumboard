@@ -22,7 +22,6 @@ pipeline {
                         branches: [[name: 'main']],
                         extensions: [
                             [$class: 'CloneOption', timeout: 30],
-                            [$class: 'CleanBeforeCheckout']
                         ],
                         userRemoteConfigs: [[
                             url: 'https://github.com/PaulAllen000/scrumboard.git'
