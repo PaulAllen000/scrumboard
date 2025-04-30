@@ -2,12 +2,13 @@ FROM node:20 AS builder
 
 WORKDIR /app
 
-RUN npm install -g @angular/cli
+COPY package*.json angular.json tsconfig*.json ./
+COPY src ./src
+COPY . .
 
-COPY package*.json ./
+RUN npm install -g @angular/cli
 RUN npm install --legacy-peer-deps
 
-COPY . .
 RUN ng build --configuration production
 
 FROM node:20 AS runner
