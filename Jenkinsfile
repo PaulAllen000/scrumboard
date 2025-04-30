@@ -21,7 +21,7 @@ pipeline {
                         $class: 'GitSCM',
                         branches: [[name: 'main']],
                         extensions: [
-                            [$class: 'CloneOption', timeout: 30],
+                            [$class: 'CloneOption', timeout: 30]
                         ],
                         userRemoteConfigs: [[
                             url: 'https://github.com/PaulAllen000/scrumboard.git'
