@@ -7,7 +7,7 @@ COPY scrum-ui/package*.json ./scrum-ui/
 WORKDIR /app/scrum-ui
 RUN npm install
 
-COPY scrum-ui /app/scrum-ui
+COPY scrum-ui/ /app/scrum-ui/
 
 RUN npm run build -- --configuration production
 
@@ -15,6 +15,6 @@ FROM nginx:latest AS runner
 
 COPY default.conf /etc/nginx/conf.d/default.conf
 
-COPY --from=build /usr/src/app/dist /usr/share/nginx/html
+COPY --from=builder /app/scrum-ui/dist /usr/share/nginx/html
 
 EXPOSE 80
