@@ -1,11 +1,20 @@
-FROM maven:3.6.1-jdk-8-slim AS build
-RUN mkdir -p /workspace
-WORKDIR /workspace
-COPY pom.xml /workspace
-COPY src /workspace/src
-RUN mvn -f pom.xml clean package
+FROM node:18-alpine AS builder
 
-FROM openjdk:8-alpine
-COPY --from=build /workspace/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","app.jar"]
+WORKDIR /app
+
+COPY scrum-ui/package*.json ./scrum-ui/
+
+WORKDIR /app/scrum-ui
+RUN npm install
+
+COPY scrum-ui /app/scrum-ui
+
+RUN npm run build -- --configuration production
+
+FROM nginx:latest AS runner
+
+COPY default.conf /etc/nginx/conf.d/default.conf
+
+COPY --from=builder /app/scrum-ui/dist/scrum-ui /usr/share/nginx/html
+
+EXPOSE 80
