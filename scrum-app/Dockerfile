@@ -15,6 +15,6 @@ FROM nginx:latest AS runner
 
 COPY default.conf /etc/nginx/conf.d/default.conf
 
-COPY --from=builder /app/scrum-ui/dist/scrum-ui /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
