@@ -1,20 +1,18 @@
-FROM node:18-alpine AS builder
+FROM maven:3.6.1-jdk-8-slim AS build
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY scrum-ui/package*.json ./scrum-ui/
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-WORKDIR /app/scrum-ui
-RUN npm install
+COPY src ./src
 
-COPY scrum-ui/ /app/scrum-ui/
+RUN mvn clean package -DskipTests
 
-RUN npm run build -- --configuration production
+FROM openjdk:8-alpine
 
-FROM nginx:latest AS runner
+COPY --from=build /workspace/target/*.jar app.jar
 
-COPY default.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080
 
-COPY --from=builder /app/scrum-ui/dist /usr/share/nginx/html
-
-EXPOSE 80
+ENTRYPOINT ["java", "-jar", "app.jar"]
