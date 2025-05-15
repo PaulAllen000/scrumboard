@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Scrum } from '../model/scrum/scrum';
 import { ScrumService } from '../service/scrum-service.service';
-import { MatDialog, MatDialogConfig } from '@angular/material';
+import { MatDialog, MatDialogConfig, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { ScrumDialogComponent } from '../scrum-dialog/scrum-dialog.component';
 
 @Component({
