@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Scrum } from '../model/scrum/scrum';
 import { Task } from '../model/task/task';
 import { CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
-import { MatDialog, MatDialogConfig } from '@angular/material';
+import { MatDialog, MatDialogConfig, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { TaskDialogComponent } from '../task-dialog/task-dialog.component';
 import { TaskService } from '../service/task.service';
 
