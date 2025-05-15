@@ -1,10 +1,11 @@
 import { Component, OnInit, Inject } from '@angular/core';
-import { MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material';
+import { MatDialog, MatDialogConfig, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { Task } from '../model/task/task';
 import { MatInputModule } from '@angular/material/input';
 import { FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { ScrumService } from '../service/scrum-service.service';
 import { TaskService } from '../service/task.service';
+
 
 @Component({
   selector: 'app-task-dialog',
@@ -21,8 +22,8 @@ export class TaskDialogComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private dialogRef: MatDialogRef<TaskDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) data,
+    @Inject(MatDialogRef) private dialogRef: MatDialogRef<TaskDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any,
     private scrumService: ScrumService,
     private taskService: TaskService) {
 
